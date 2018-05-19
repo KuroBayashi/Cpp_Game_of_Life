@@ -3,31 +3,24 @@
 
 #include <SFML/Graphics/RectangleShape.hpp>
 
-typedef enum State {
-  EMPTY,
-  FULL,
-  BORN,
-  DEAD
-} State;
+typedef enum eState {
+  DEAD,
+  ALIVE
+} tState;
 
 class Cell : public sf::RectangleShape{
 
   private:
-
-  int m_x;
-  int m_y;
-  int m_size;
-  State m_state;
+  tState m_state;
 
   public:
+  static const int SIZE = 10;
 
-  Cell(int x, int y, int size);
-  Cell(int x, int y, int size, State state);
-  int getX();
-  int getY();
-  int getSize();
-  State getState();
-  void setState(State state);
+  Cell(int x, int y);
+  Cell(int x, int y, tState state);
+  bool isAlive();
+  tState getState();
+  void setState(tState state);
 
 };
 

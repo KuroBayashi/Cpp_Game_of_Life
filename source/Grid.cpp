@@ -1,32 +1,45 @@
-#include <algorithm>
-#include <SFML/Graphics/RenderWindow.hpp>
+#include <iostream>
 #include "../header/Grid.h"
 
-Grid::Grid(sf::RenderWindow *window, int columns, int rows, int cellSize)
-    : m_window(window), m_columns(columns), m_rows(rows), m_cellSize(cellSize),
-      m_cells(new Cell*[columns*rows]) {
+Grid::Grid(sf::RenderWindow *window)
+    : m_window(window), m_columns(0), m_rows(0), m_cells(), m_oldCells() {
 
-  for (int i = 0, length = columns*rows; i < length; i++) {
-    m_cells[i] = new Cell(i % columns, i / columns, cellSize);
+  m_rows = m_window->getSize().y / Cell::SIZE;
+  m_columns = m_window->getSize().x / Cell::SIZE;
+
+  for (unsigned int j = 0; j < m_rows; j++) {
+    vector<Cell*> row;
+    vector<Cell*> oldRow;
+
+    for (unsigned int i = 0; i < m_columns; i++) {
+      tState state = (rand() % 5 > 1) ? tState::ALIVE : tState::DEAD;
+      row.push_back(new Cell(i, j, state));
+      oldRow.push_back(new Cell(i, j, state));
+    }
+
+    m_cells.push_back(row);
+    m_oldCells.push_back(oldRow);
   }
 }
 
-int Grid::getCountNeighbors(Cell **cells, Cell *cell) {
+int Grid::getCountNeighbors(int x, int y) {
   int neighborsCount = 0;
-  int c_x = cell->getX();
-  int c_y = cell->getY();
-
-  int index;
   int neighborsPositions[8][2] = {
       {-1, -1}, {0, -1}, {1, -1},
       {-1,  0},          {1,  0},
       {-1,  1}, {0,  1}, {1,  1}
   };
 
-  for (auto &neighborsPosition : neighborsPositions) {
-    index = (c_y + neighborsPosition[0]) * m_columns + c_x + neighborsPosition[1];
-    if (index > 0 && index < m_columns*m_rows && cells[index]->getState() == State::FULL) {
-        ++neighborsCount;
+  int nx, ny;
+  for (auto &neighborPosition : neighborsPositions) {
+    nx = x + neighborPosition[0];
+    ny = y + neighborPosition[1];
+    
+    nx = (nx < 0) ? m_columns-1 : (nx >= m_columns) ? 0 : nx;
+    ny = (ny < 0) ? m_rows-1 : (ny >= m_rows) ? 0 : ny;
+
+    if (m_oldCells.at(static_cast<unsigned int>(ny)).at(static_cast<unsigned int>(nx))->isAlive()) {
+      neighborsCount++;
     }
   }
 
@@ -34,46 +47,48 @@ int Grid::getCountNeighbors(Cell **cells, Cell *cell) {
 }
 
 void Grid::update() {
-  auto **cells = new Cell*[m_columns*m_rows];
-  for (int i = 0, l = m_columns*m_rows; i < l; i++) {
-    cells[i] = new Cell(m_cells[i]->getX(), m_cells[i]->getY(), m_cells[i]->getSize(), m_cells[i]->getState());
-  }
-
-  for (int i = 0, l = m_columns*m_rows; i < l; i++) {
-    switch (getCountNeighbors(cells, cells[i])) {
-      case 2:
-        break;
-      case 3:
-        if (m_cells[i]->getState() == State::EMPTY) {
-          m_cells[i]->setState(State::FULL);
-        }
-        break;
-      default:
-        if (m_cells[i]->getState() == State::FULL) {
-          m_cells[i]->setState(State::EMPTY);
-        }
-        break;
+  for (unsigned int j = 0; j < m_rows; j++) {
+    for (unsigned int i = 0; i < m_columns; i++) {
+      m_oldCells.at(j).at(i)->setState(m_cells.at(j).at(i)->getState());
     }
   }
 
-  for (int i = 0, l = m_columns*m_rows; i < l; i++) {
-    delete cells[i];
+  for (unsigned int j = 0; j < m_rows; j++) {
+    for (unsigned int i = 0; i < m_columns; i++) {
+      switch (getCountNeighbors(i, j)) {
+        case 2:
+          break;
+        case 3:
+          if (!m_oldCells.at(j).at(i)->isAlive()) {
+            m_cells.at(j).at(i)->setState(tState::ALIVE);
+          }
+          break;
+        default:
+          if (m_oldCells.at(j).at(i)->isAlive()) {
+            m_cells.at(j).at(i)->setState(tState::DEAD);
+          }
+          break;
+      }
+    }
   }
 }
 
-void Grid::toggleCell(int x, int y) {
-  Cell *c = m_cells[x / m_cells[0]->getSize() + m_columns * (y / m_cells[0]->getSize())];
+Cell* Grid::getCell(int x, int y) {
+  Cell *cell = nullptr;
+  try {
+    cell = m_cells.at(static_cast<unsigned int>(y)/Cell::SIZE).at(static_cast<unsigned int>(x)/Cell::SIZE);
+  }
+  catch (const std::out_of_range& oor) {
+    //std::cerr << "Out of Range error: " << oor.what() << '\n';
+  }
 
-  if (c->getState() == State::EMPTY) {
-    c->setState(State::FULL);
-  }
-  else if (c->getState() == State::FULL) {
-    c->setState(State::EMPTY);
-  }
+  return cell;
 }
 
 void Grid::show() {
-  for (int i = 0, l = m_columns*m_rows; i < l; i++) {
-    m_window->draw(*m_cells[i]);
+  for (auto &line : m_cells) {
+    for (auto &cell : line) {
+      m_window->draw(*cell);
+    }
   }
 }
